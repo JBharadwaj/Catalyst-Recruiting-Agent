@@ -162,7 +162,7 @@ if "initialized" not in st.session_state:
 
 
 # ---------------- PROCESS CANDIDATES ----------------
-if st.session_state.current_candidate_index < len(st.session_state.top_candidates):
+if st.session_state.current_candidate_index < len(st.session_state.top_candidates) or 1:
 
     name, profile, match_score = st.session_state.top_candidates[st.session_state.current_candidate_index]
 

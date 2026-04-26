@@ -1,0 +1,14 @@
+Kavin
+Senior Backend Engineer | Bengaluru, India
+
+Summary:
+High-impact engineer with 6+ years of experience in distributed systems and observability. Passionate about Python, cloud architecture, and high-throughput data pipelines.
+
+Experience:
+
+TechStream Systems (2021 – Present): Lead Developer for the Observability team. Optimized ELK Stack (v7.17) nodes, reducing disk usage by 40%. Implemented Kafka-based data ingestion for 10M+ events/day.
+
+Innovate Corp (2018 – 2021): Developed RESTful APIs using FastAPI and PostgreSQL. Migrated legacy monolith to AWS microservices.
+
+Technical Skills:
+Python, FastAPI, Elasticsearch, Logstash, Kibana, Apache Kafka, AWS (EC2, S3, Lambda), Docker, Kubernetes, System Design.
