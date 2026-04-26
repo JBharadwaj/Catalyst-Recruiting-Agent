@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 CANDIDATES_URL = "https://catalyst-recruiting-agent-1.onrender.com/get_candidates"
