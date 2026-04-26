@@ -1,0 +1,16 @@
+JORDAN LEE
+AI Research Engineer
+
+Professional Background:
+Specialized in Generative AI and Agentic Workflows. Expert in prompt engineering and fine-tuning Large Language Models for specific industrial use cases.
+
+Core Competencies:
+
+AI: OpenAI API, LangChain, Gemini SDK, Vector Databases (Pinecone, ChromaDB).
+
+Languages: Python (Advanced), C++, SQL.
+
+Tools: PyTorch, HuggingFace, Git, Linux.
+
+Latest Achievement:
+Built an automated customer support agent that reduced human intervention by 60% using RAG (Retrieval-Augmented Generation).

@@ -1,0 +1,20 @@
+Priya Sharma
+Full Stack Developer | MERN Specialist | Digital Product Builder
+
+About:
+I build and sell Developer Assets. Specialized in creating scalable MERN stack templates and automated scrapers. I help startups launch vertical SaaS products in weeks, not months.
+
+Top Skills:
+
+React.js & Next.js
+
+Node.js & Express
+
+MongoDB (Aggregation Framework)
+
+Puppeteer (Web Scraping)
+
+Tailwind CSS
+
+Featured Project:
+Built "SaaS-in-a-Box": A production-ready boilerplate with Stripe integration and authentication used by 50+ developers.

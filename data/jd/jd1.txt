@@ -1,0 +1,3 @@
+Job Title: Senior Backend Developer
+Requirements: We are looking for an expert in Python and FastAPI to manage our data pipelines. Experience with the ELK stack (Elasticsearch, Logstash, Kibana) is mandatory. Familiarity with AWS and Docker is a plus.
+Years of Experience: 5+ years.
