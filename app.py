@@ -10,76 +10,36 @@ os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 RESULTS_FILE = "final_recruiter_data.json"
-CANDIDATES_API = "https://catalyst-recruiting-agent-1.onrender.com/get_candidates"
-JD_API = "https://catalyst-recruiting-agent-1.onrender.com/get_job_descriptions"
-#CANDIDATES_API = st.secrets["CANDIDATES_API"]
-#JD_API = st.secrets["JD_API"]
+
+CANDIDATES_API = st.secrets["CANDIDATES_API"]
+JD_API = st.secrets["JD_API"]
 
 
+# ---------------- FETCH TOP 2 CANDIDATES ----------------
 def get_top_candidates():
     try:
-        cands_resp = requests.get(CANDIDATES_API).json()
-        jds_resp = requests.get(JD_API).json()
-        
-        cands = cands_resp.get("candidates", {})
-        jds = jds_resp.get("job_descriptions", {})
+        cands = requests.get(CANDIDATES_API).json().get("candidates", {})
+        jds = requests.get(JD_API).json().get("job_descriptions", {})
 
-        # --- FIX 1: CHECK IF JDS EXIST ---
-        if not jds:
-            st.error("Error: No job descriptions found in JD_API.")
-            return [], None, None
-            
-        jd_keys = list(jds.keys())
-        if not jd_keys:
-            st.error("Error: Job description list is empty.")
-            return [], None, None
-            
-        jd_title = jd_keys[0]
+        jd_title = list(jds.keys())[0]
         jd_info = jds[jd_title]
 
-        if not cands:
-            st.warning("No candidates found in API.")
-            return [], jd_title, jd_info
-
         scored_candidates = []
+
         for name, profile in cands.items():
-            # Safety check: ensure profile and jd_info are valid for the ranker
-            try:
-                score, _, _ = calculate_python_scores(profile, jd_info)
-                scored_candidates.append((name, profile, score))
-            except Exception as e:
-                print(f"Skipping {name} due to scoring error: {e}")
+            score, _, _ = calculate_python_scores(profile, jd_info)
+            scored_candidates.append((name, profile, score))
 
         scored_candidates.sort(key=lambda x: x[2], reverse=True)
+
         return scored_candidates[:2], jd_title, jd_info
 
     except Exception as e:
-        st.error(f"Actual Error: {str(e)}") 
+        print(f"Error fetching candidates: {e}")
         return [], None, None
 
-# ---------------- UI INITIALIZATION ----------------
-st.title("🤝 Catalyst Recruiting Agent")
 
-# Consolidated initialization block
-if "top_candidates" not in st.session_state:
-    with st.spinner("Fetching initial data..."):
-        cands, title, info = get_top_candidates()
-        
-        # We only set these if we actually got candidates
-        if cands:
-            st.session_state.top_candidates = cands
-            st.session_state.jd_title = title
-            st.session_state.jd_info = info
-            st.session_state.current_candidate_index = 0
-            st.session_state.messages = []
-            st.session_state.questions_asked = 0
-            st.session_state.chat_complete = False
-        else:
-            # If API failed or returned 0, we show a button to try again
-            st.error("Could not load candidates. The API might be down or returning empty data.")
-            if st.button("🔄 Retry Connection"):
-                st.rerun()
-            st.stop() # Prevents the rest of the app from running with empty data# ---------------- SAVE RESULTS ----------------
+# ---------------- SAVE RESULTS ----------------
 def save_to_file(name, match_score, interest_score, note):
     new_entry = {
         "candidate_name": name,
@@ -188,7 +148,8 @@ Return ONLY next message.
     return completion.choices[0].message.content
 
 
-
+# ---------------- UI ----------------
+st.title("🤝 Catalyst Recruiting Agent")
 
 # Initialize session
 if "initialized" not in st.session_state:
@@ -300,14 +261,4 @@ if st.session_state.current_candidate_index < len(st.session_state.top_candidate
             st.rerun()
 
 else:
-    st.balloons()
     st.success("🎉 All candidates processed!")
-
-    if st.button("🔄 Restart Cycle"):
-        # Clear everything related to the current run
-        for key in ["top_candidates", "current_candidate_index", "messages", "questions_asked", "chat_complete"]:
-            if key in st.session_state:
-                del st.session_state[key]
-        
-        # This force-clears the cache and triggers the Init block at the top
-        st.rerun()
