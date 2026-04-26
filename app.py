@@ -283,3 +283,8 @@ if st.session_state.current_candidate_index < len(st.session_state.top_candidate
 
 else:
     st.success("🎉 All candidates processed! (New user will start fresh)")
+    st.info("Click below to restart the process from beginning.")
+
+    if st.button("🔄 Start Over"):
+        st.session_state.clear()
+        st.rerun()
