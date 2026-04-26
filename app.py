@@ -13,8 +13,8 @@ import os
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 RESULTS_FILE = "final_recruiter_data.json"
-CANDIDATES_API = "http://127.0.0.1:8000/get_candidates"
-JD_API = "http://127.0.0.1:8000/get_job_descriptions"
+CANDIDATES_API = "https://catalyst-recruiting-agent-1.onrender.com/get_candidates"
+JD_API = "https://catalyst-recruiting-agent-1.onrender.com/get_job_descriptions"
 
 # ---------------- FETCH TOP 2 CANDIDATES ----------------
 def get_top_candidates():
@@ -157,8 +157,6 @@ if st.session_state.current_candidate_index < len(st.session_state.top_candidate
     name, profile, match_score = st.session_state.top_candidates[st.session_state.current_candidate_index]
 
     st.subheader(f"👤 Candidate: {name}")
-    st.write(f"📊 Match Score: {match_score}")
-
     # Initial AI message
     if len(st.session_state.messages) == 0:
         first_msg = recruiter_chat_ai(
