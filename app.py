@@ -1,13 +1,23 @@
-import streamlit as st
+import streamlit as st  # <--- Make sure this is here!
 import json
 import os
 import requests
 from groq import Groq
-from ranking_agent import calculate_python_scores
 
-# ---------------- CONFIG ----------------
-os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+# 1. Initialize secrets BEFORE importing the ranking agent
+if "GROQ_API_KEY" in st.secrets:
+    os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+else:
+    st.error("GROQ_API_KEY not found in Streamlit secrets!")
+    st.stop()
+
+# 2. NOW import your ranking agent (after the environment variable is set)
+from ranking_agent import calculate_python_scores 
+
+# 3. Initialize the Groq client for app.py
+client = Groq(api_key=os.environ["GROQ_API_KEY"])
+
+# ... rest of your code (RESULTS_FILE, URLs, etc.) ...
 
 RESULTS_FILE = "final_recruiter_data.json"
 
