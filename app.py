@@ -51,7 +51,8 @@ def get_top_candidates():
         return scored_candidates[:2], jd_title, jd_info
 
     except Exception as e:
-        print(f"DEBUG ERROR: {e}")
+    # This will show the actual Python error on your app screen
+        st.error(f"Actual Error: {str(e)}") 
         return [], None, None
 
 
