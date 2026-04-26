@@ -6,7 +6,8 @@ import requests
 from groq import Groq
 # Import the logic from your other file
 from ranking_agent import calculate_python_scores 
-
+from dotenv import load_dotenv
+load_dotenv()
 # 1. Configuration
 import os
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))

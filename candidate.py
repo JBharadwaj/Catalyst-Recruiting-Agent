@@ -3,7 +3,9 @@ import json
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from groq import Groq  # Make sure to: pip install groq
+from groq import Groq 
+from dotenv import load_dotenv
+load_dotenv() # Make sure to: pip install groq
 
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
