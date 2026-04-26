@@ -153,6 +153,11 @@ Return ONLY next message.
 
     return completion.choices[0].message.content
 
+# ---------------- FORCE HARD RESET ON LOAD ----------------
+if "force_reset_done" not in st.session_state:
+    st.session_state.clear()
+    st.session_state.force_reset_done = True
+    st.rerun()
 
 # ---------------- INITIALIZE SESSION ----------------
 def init_session():
