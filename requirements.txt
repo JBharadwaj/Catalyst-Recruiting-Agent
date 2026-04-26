@@ -3,8 +3,4 @@ fastapi
 uvicorn
 requests
 groq
-os
-time
-os
-json
 pydantic
