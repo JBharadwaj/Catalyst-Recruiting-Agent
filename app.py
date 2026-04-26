@@ -162,7 +162,7 @@ if "initialized" not in st.session_state:
 
 
 # ---------------- PROCESS CANDIDATES ----------------
-if st.session_state.current_candidate_index < len(st.session_state.top_candidates) or 1:
+if st.session_state.current_candidate_index < len(st.session_state.top_candidates):
 
     name, profile, match_score = st.session_state.top_candidates[st.session_state.current_candidate_index]
 
@@ -262,3 +262,113 @@ if st.session_state.current_candidate_index < len(st.session_state.top_candidate
 
 else:
     st.success("🎉 All candidates processed!")
+    if st.session_state.current_candidate_index >= len(st.session_state.top_candidates):
+        st.balloons()
+        st.success("🎉 All candidates processed! Restarting the cycle...")
+        
+        # Resetting the state to start from index 0
+        st.session_state.current_candidate_index = 0
+        st.session_state.messages = []
+        st.session_state.questions_asked = 0
+        st.session_state.chat_complete = False
+        
+        # Re-fetch candidates if you want them to be truly "fresh" from the API
+        st.session_state.top_candidates, _, _ = get_top_candidates()
+        
+        st.rerun()
+        if st.session_state.current_candidate_index < len(st.session_state.top_candidates):
+            name, profile, match_score = st.session_state.top_candidates[st.session_state.current_candidate_index]
+
+            st.subheader(f"👤 Candidate: {name}")
+
+            # Initial message
+            if len(st.session_state.messages) == 0:
+                first_msg = recruiter_chat_ai(
+                    [],
+                    st.session_state.jd_title,
+                    st.session_state.jd_info,
+                    profile,
+                    0
+                )
+                st.session_state.messages.append({"role": "assistant", "content": first_msg})
+
+            # Display chat
+            for msg in st.session_state.messages:
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
+
+            # ---------------- CHAT FLOW ----------------
+            if not st.session_state.chat_complete:
+                if user_input := st.chat_input("Reply to recruiter..."):
+
+                    st.session_state.messages.append({"role": "user", "content": user_input})
+
+                    with st.chat_message("user"):
+                        st.markdown(user_input)
+
+                    # 🔴 CHECK DISINTEREST
+                    result = detect_disinterest_ai(
+                        st.session_state.messages[-6:],
+                        user_input
+                    )
+
+                    if result["disinterested"]:
+                        exit_msg = "Thanks for your time. We understand you're not interested right now. We'll reach out in future opportunities."
+
+                        st.session_state.messages.append({"role": "assistant", "content": exit_msg})
+
+                        with st.chat_message("assistant"):
+                            st.markdown(exit_msg)
+
+                        save_to_file(name, match_score, 0, result["reason"])
+
+                        st.warning("❌ Candidate not interested")
+
+                        st.session_state.chat_complete = True
+                        st.rerun()
+
+                    # ✅ CONTINUE
+                    st.session_state.questions_asked += 1
+
+                    ai_reply = recruiter_chat_ai(
+                        st.session_state.messages[-6:],
+                        st.session_state.jd_title,
+                        st.session_state.jd_info,
+                        profile,
+                        st.session_state.questions_asked
+                    )
+
+                    st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+
+                    with st.chat_message("assistant"):
+                        st.markdown(ai_reply)
+
+                    if st.session_state.questions_asked >= 10:
+                        st.session_state.chat_complete = True
+
+            # ---------------- FINAL ANALYSIS ----------------
+            if st.session_state.chat_complete:
+                with st.spinner("Analyzing..."):
+
+                    interest_data = analyze_interest_ai(str(st.session_state.messages[-8:]))
+
+                    save_to_file(
+                        name,
+                        match_score,
+                        interest_data["score"],
+                        interest_data["note"]
+                    )
+
+                    total = (match_score + interest_data["score"]) / 2
+
+                    if total >= 70:
+                        st.success("✅ Move to interview")
+                    else:
+                        st.error("❌ Not shortlisted")
+
+                if st.button("➡️ Next Candidate"):
+                    st.session_state.current_candidate_index += 1
+                    st.session_state.messages = []
+                    st.session_state.questions_asked = 0
+                    st.session_state.chat_complete = False
+                    st.rerun()
