@@ -13,18 +13,11 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 CANDIDATES_API = st.secrets["CANDIDATES_API"]
 JD_API = st.secrets["JD_API"]
 
-# ---------------- SESSION FILE (PER USER) ----------------
-if "file_id" not in st.session_state:
-    st.session_state.file_id = str(uuid.uuid4())
-
-RESULTS_FILE = f"results_{st.session_state.file_id}.json"
-
-
-# ---------------- FETCH TOP 2 CANDIDATES ----------------
+# ---------------- FETCH TOP CANDIDATES ----------------
 def get_top_candidates():
     try:
-        cands = requests.get(CANDIDATES_API).json().get("candidates", {})
-        jds = requests.get(JD_API).json().get("job_descriptions", {})
+        cands = requests.get(CANDIDATES_API, headers={"Cache-Control": "no-cache"}).json().get("candidates", {})
+        jds = requests.get(JD_API, headers={"Cache-Control": "no-cache"}).json().get("job_descriptions", {})
 
         jd_title = list(jds.keys())[0]
         jd_info = jds[jd_title]
@@ -46,6 +39,11 @@ def get_top_candidates():
 
 # ---------------- SAVE RESULTS ----------------
 def save_to_file(name, match_score, interest_score, note):
+    if "file_id" not in st.session_state:
+        st.session_state.file_id = str(uuid.uuid4())
+
+    RESULTS_FILE = f"results_{st.session_state.file_id}.json"
+
     new_entry = {
         "candidate_name": name,
         "match_score": match_score,
@@ -65,214 +63,158 @@ def save_to_file(name, match_score, interest_score, note):
         json.dump(data, f, indent=4)
 
 
-# ---------------- AI DISINTEREST CHECK ----------------
+# ---------------- AI FUNCTIONS ----------------
 def detect_disinterest_ai(chat_history, latest_message):
     prompt = f"""
-Analyze if the candidate is NOT interested in the job.
+Analyze if the candidate is NOT interested.
 
 Conversation:
 {chat_history}
 
-Latest message:
+Latest:
 "{latest_message}"
 
-Rules:
-- Rejecting / avoiding → TRUE
-- Neutral → FALSE
-- Interested → FALSE
-
 Return JSON:
-{{
-    "disinterested": true/false,
-    "reason": "short reason"
-}}
+{{"disinterested": true/false, "reason": "short"}}
 """
 
-    completion = client.chat.completions.create(
+    res = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"}
     )
 
-    return json.loads(completion.choices[0].message.content)
+    return json.loads(res.choices[0].message.content)
 
 
-# ---------------- AI INTEREST ANALYSIS ----------------
 def analyze_interest_ai(chat_history):
     prompt = f"""
-Analyze this recruiter-candidate conversation.
+Analyze conversation.
 
 Return JSON:
-- score (0-100)
-- note
+{{"score":0-100, "note":"short"}}
 
 Chat:
 {chat_history}
 """
 
-    completion = client.chat.completions.create(
+    res = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"}
     )
 
-    return json.loads(completion.choices[0].message.content)
+    return json.loads(res.choices[0].message.content)
 
 
-# ---------------- AI RECRUITER ----------------
-def recruiter_chat_ai(messages, jd_title, jd_info, candidate_profile, question_count):
+def recruiter_chat_ai(messages, jd_title, jd_info, profile):
     prompt = f"""
-You are a HUMAN HR RECRUITER.
+You are a HR recruiter.
 
 Role: {jd_title}
 JD: {jd_info}
-Candidate: {candidate_profile}
+Candidate: {profile}
 
-Conversation:
+Chat:
 {messages}
 
 Rules:
-- Be conversational
-- Ask 1 question at a time
-- Max 10 questions
-- Focus on interest, availability, salary, goals
-- No deep tech
-- Questions must be clear and crisp
-
-Adapt:
-- Disinterest → be polite
-- Interest → move faster
-
-Return ONLY next message.
+- Ask 1 question
+- Max 10 total
+- Keep short
 """
 
-    completion = client.chat.completions.create(
+    res = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}]
     )
 
-    return completion.choices[0].message.content
+    return res.choices[0].message.content
 
-# ---------------- FORCE HARD RESET ON LOAD ----------------
-if "force_reset_done" not in st.session_state:
-    st.session_state.clear()
-    st.session_state.force_reset_done = True
-    st.rerun()
 
-# ---------------- INITIALIZE SESSION ----------------
+# ---------------- INIT SESSION ----------------
 def init_session():
-    st.session_state.top_candidates, st.session_state.jd_title, st.session_state.jd_info = get_top_candidates()
+    top, jd_title, jd_info = get_top_candidates()
+    st.session_state.top_candidates = top
+    st.session_state.jd_title = jd_title
+    st.session_state.jd_info = jd_info
     st.session_state.current_candidate_index = 0
     st.session_state.messages = []
     st.session_state.questions_asked = 0
     st.session_state.chat_complete = False
 
 
-if "initialized" not in st.session_state:
+if "current_candidate_index" not in st.session_state:
     init_session()
-    st.session_state.initialized = True
 
 
 # ---------------- UI ----------------
 st.title("🤝 Catalyst Recruiting Agent")
 
-# Restart button
 if st.button("🔄 Restart"):
     st.session_state.clear()
     st.rerun()
 
 
-# ---------------- PROCESS CANDIDATES ----------------
+# ---------------- MAIN FLOW ----------------
 if st.session_state.current_candidate_index < len(st.session_state.top_candidates):
 
     name, profile, match_score = st.session_state.top_candidates[st.session_state.current_candidate_index]
 
     st.subheader(f"👤 Candidate: {name}")
 
-    # Initial message
     if len(st.session_state.messages) == 0:
-        first_msg = recruiter_chat_ai(
-            [],
-            st.session_state.jd_title,
-            st.session_state.jd_info,
-            profile,
-            0
-        )
-        st.session_state.messages.append({"role": "assistant", "content": first_msg})
+        msg = recruiter_chat_ai([], st.session_state.jd_title, st.session_state.jd_info, profile)
+        st.session_state.messages.append({"role": "assistant", "content": msg})
 
-    # Display chat
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+    for m in st.session_state.messages:
+        with st.chat_message(m["role"]):
+            st.markdown(m["content"])
 
-    # ---------------- CHAT FLOW ----------------
     if not st.session_state.chat_complete:
-        if user_input := st.chat_input("Reply to recruiter..."):
+        if user_input := st.chat_input("Reply..."):
 
             st.session_state.messages.append({"role": "user", "content": user_input})
 
             with st.chat_message("user"):
                 st.markdown(user_input)
 
-            # 🔴 CHECK DISINTEREST
-            result = detect_disinterest_ai(
-                st.session_state.messages[-6:],
-                user_input
-            )
+            result = detect_disinterest_ai(st.session_state.messages[-6:], user_input)
 
             if result["disinterested"]:
-                exit_msg = "Thanks for your time. We understand you're not interested right now. We'll reach out in future opportunities."
-
-                st.session_state.messages.append({"role": "assistant", "content": exit_msg})
-
-                with st.chat_message("assistant"):
-                    st.markdown(exit_msg)
-
+                st.warning("❌ Not interested")
                 save_to_file(name, match_score, 0, result["reason"])
-
-                st.warning("❌ Candidate not interested")
-
                 st.session_state.chat_complete = True
                 st.rerun()
 
-            # ✅ CONTINUE
             st.session_state.questions_asked += 1
 
-            ai_reply = recruiter_chat_ai(
+            reply = recruiter_chat_ai(
                 st.session_state.messages[-6:],
                 st.session_state.jd_title,
                 st.session_state.jd_info,
-                profile,
-                st.session_state.questions_asked
+                profile
             )
 
-            st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+            st.session_state.messages.append({"role": "assistant", "content": reply})
 
             with st.chat_message("assistant"):
-                st.markdown(ai_reply)
+                st.markdown(reply)
 
             if st.session_state.questions_asked >= 10:
                 st.session_state.chat_complete = True
 
-    # ---------------- FINAL ANALYSIS ----------------
     if st.session_state.chat_complete:
-        with st.spinner("Analyzing..."):
+        data = analyze_interest_ai(str(st.session_state.messages[-8:]))
 
-            interest_data = analyze_interest_ai(str(st.session_state.messages[-8:]))
+        save_to_file(name, match_score, data["score"], data["note"])
 
-            save_to_file(
-                name,
-                match_score,
-                interest_data["score"],
-                interest_data["note"]
-            )
+        total = (match_score + data["score"]) / 2
 
-            total = (match_score + interest_data["score"]) / 2
-
-            if total >= 70:
-                st.success("✅ Move to interview")
-            else:
-                st.error("❌ Not shortlisted")
+        if total >= 70:
+            st.success("✅ Move to interview")
+        else:
+            st.error("❌ Not shortlisted")
 
         if st.button("➡️ Next Candidate"):
             st.session_state.current_candidate_index += 1
@@ -281,10 +223,14 @@ if st.session_state.current_candidate_index < len(st.session_state.top_candidate
             st.session_state.chat_complete = False
             st.rerun()
 
-else:
-    st.success("🎉 All candidates processed! (New user will start fresh)")
-    st.info("Click below to restart the process from beginning.")
 
-    if st.button("🔄 Start Over"):
-        st.session_state.clear()
+# ---------------- AUTO RESTART ----------------
+else:
+    st.success("🎉 All candidates processed! Restarting...")
+
+    # Show a brief summary or message before the hard reset
+    if st.button("🚀 Start New Batch"):
+        # This is the cleanest way to "factory reset" the app
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         st.rerun()
