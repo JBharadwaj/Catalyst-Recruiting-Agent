@@ -271,4 +271,9 @@ if st.session_state.current_candidate_index < len(st.session_state.top_candidate
             st.rerun()
 
 else:
-    st.success("🎉 All candidates processed!")
+    st.info("🔁 Restarting candidate evaluation loop...")
+    st.session_state.current_candidate_index = 0
+    st.session_state.messages = []
+    st.session_state.questions_asked = 0
+    st.session_state.chat_complete = False
+    st.experimental_rerun()
