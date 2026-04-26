@@ -6,10 +6,9 @@ import requests
 from groq import Groq
 # Import the logic from your other file
 from ranking_agent import calculate_python_scores 
-from dotenv import load_dotenv
-load_dotenv()
 # 1. Configuration
-import os
+
+os.environ["GROQ_API_KEY"]=st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 RESULTS_FILE = "final_recruiter_data.json"
