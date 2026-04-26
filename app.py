@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import os
 import requests
+import uuid
 from groq import Groq
 from ranking_agent import calculate_python_scores
 
@@ -9,10 +10,14 @@ from ranking_agent import calculate_python_scores
 os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-RESULTS_FILE = "final_recruiter_data.json"
-
 CANDIDATES_API = st.secrets["CANDIDATES_API"]
 JD_API = st.secrets["JD_API"]
+
+# ---------------- SESSION FILE (PER USER) ----------------
+if "file_id" not in st.session_state:
+    st.session_state.file_id = str(uuid.uuid4())
+
+RESULTS_FILE = f"results_{st.session_state.file_id}.json"
 
 
 # ---------------- FETCH TOP 2 CANDIDATES ----------------
@@ -132,8 +137,7 @@ Rules:
 - Max 10 questions
 - Focus on interest, availability, salary, goals
 - No deep tech
-- Don't ask paragraph questions
-- Questions has to clear and crisp
+- Questions must be clear and crisp
 
 Adapt:
 - Disinterest → be polite
@@ -150,25 +154,27 @@ Return ONLY next message.
     return completion.choices[0].message.content
 
 
-# ---------------- UI ----------------
-st.title("🤝 Catalyst Recruiting Agent")
-
-# Initialize session
-# 🔄 RESET BUTTON (optional but powerful)
-if st.button("🔄 Restart Process"):
-    st.session_state.clear()
-    st.rerun()
-
-
-# Initialize session (fresh start)
-if "initialized" not in st.session_state:
+# ---------------- INITIALIZE SESSION ----------------
+def init_session():
     st.session_state.top_candidates, st.session_state.jd_title, st.session_state.jd_info = get_top_candidates()
     st.session_state.current_candidate_index = 0
     st.session_state.messages = []
     st.session_state.questions_asked = 0
     st.session_state.chat_complete = False
+
+
+if "initialized" not in st.session_state:
+    init_session()
     st.session_state.initialized = True
 
+
+# ---------------- UI ----------------
+st.title("🤝 Catalyst Recruiting Agent")
+
+# Restart button
+if st.button("🔄 Restart"):
+    st.session_state.clear()
+    st.rerun()
 
 
 # ---------------- PROCESS CANDIDATES ----------------
@@ -271,4 +277,4 @@ if st.session_state.current_candidate_index < len(st.session_state.top_candidate
             st.rerun()
 
 else:
-    st.success("🎉 All candidates processed!")
+    st.success("🎉 All candidates processed! (New user will start fresh)")
