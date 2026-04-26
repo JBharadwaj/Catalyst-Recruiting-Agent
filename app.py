@@ -154,6 +154,13 @@ Return ONLY next message.
 st.title("🤝 Catalyst Recruiting Agent")
 
 # Initialize session
+# 🔄 RESET BUTTON (optional but powerful)
+if st.button("🔄 Restart Process"):
+    st.session_state.clear()
+    st.rerun()
+
+
+# Initialize session (fresh start)
 if "initialized" not in st.session_state:
     st.session_state.top_candidates, st.session_state.jd_title, st.session_state.jd_info = get_top_candidates()
     st.session_state.current_candidate_index = 0
@@ -161,6 +168,7 @@ if "initialized" not in st.session_state:
     st.session_state.questions_asked = 0
     st.session_state.chat_complete = False
     st.session_state.initialized = True
+
 
 
 # ---------------- PROCESS CANDIDATES ----------------
