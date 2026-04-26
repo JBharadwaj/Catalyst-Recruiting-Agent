@@ -15,27 +15,42 @@ CANDIDATES_API = st.secrets["CANDIDATES_API"]
 JD_API = st.secrets["JD_API"]
 
 
-# ---------------- FETCH TOP 2 CANDIDATES ----------------
 def get_top_candidates():
     try:
-        cands = requests.get(CANDIDATES_API).json().get("candidates", {})
-        jds = requests.get(JD_API).json().get("job_descriptions", {})
+        # 1. Check if the APIs are responding
+        cands_resp = requests.get(CANDIDATES_API).json()
+        jds_resp = requests.get(JD_API).json()
+        
+        cands = cands_resp.get("candidates", {})
+        jds = jds_resp.get("job_descriptions", {})
+
+        if not cands:
+            print("DEBUG: API returned 0 candidates.")
+            return [], None, None
 
         jd_title = list(jds.keys())[0]
         jd_info = jds[jd_title]
 
         scored_candidates = []
 
+        # 2. Check if this loop is even running
+        print(f"DEBUG: Processing {len(cands)} candidates...")
+
         for name, profile in cands.items():
+            # YOUR LINE IS HERE - Keep it here
             score, _, _ = calculate_python_scores(profile, jd_info)
+            
+            print(f"DEBUG: Candidate {name} scored {score}")
             scored_candidates.append((name, profile, score))
 
+        # 3. Sort by score
         scored_candidates.sort(key=lambda x: x[2], reverse=True)
 
+        print(f"DEBUG: Final top list size: {len(scored_candidates)}")
         return scored_candidates[:2], jd_title, jd_info
 
     except Exception as e:
-        print(f"Error fetching candidates: {e}")
+        print(f"DEBUG ERROR: {e}")
         return [], None, None
 
 
@@ -151,6 +166,21 @@ Return ONLY next message.
 # ---------------- UI ----------------
 st.title("🤝 Catalyst Recruiting Agent")
 
+if "top_candidates" not in st.session_state or st.session_state.top_candidates == []:
+    with st.spinner("Loading candidates..."):
+        cands, title, info = get_top_candidates()
+        if cands:
+            st.session_state.top_candidates = cands
+            st.session_state.jd_title = title
+            st.session_state.jd_info = info
+            st.session_state.current_candidate_index = 0
+            st.session_state.messages = []
+            st.session_state.questions_asked = 0
+            st.session_state.chat_complete = False
+        else:
+            st.error("Failed to fetch candidates from API. Please check your API URL and Groq Key.")
+            st.stop()
+
 # Initialize session
 if "initialized" not in st.session_state:
     st.session_state.top_candidates, st.session_state.jd_title, st.session_state.jd_info = get_top_candidates()
@@ -263,21 +293,12 @@ if st.session_state.current_candidate_index < len(st.session_state.top_candidate
 else:
     st.balloons()
     st.success("🎉 All candidates processed!")
-    
-    # --- DEBUGGING INFO (Optional: remove once it works) ---
-    st.caption(f"Debug: Index is {st.session_state.current_candidate_index}")
-    st.caption(f"Debug: Total candidates in memory: {len(st.session_state.top_candidates)}")
-    # -------------------------------------------------------
 
     if st.button("🔄 Restart Cycle"):
-        # 1. Reset ONLY the tracking variables.
-        st.session_state.current_candidate_index = 0
-        st.session_state.messages = []
-        st.session_state.questions_asked = 0
-        st.session_state.chat_complete = False
+        # Clear everything related to the current run
+        for key in ["top_candidates", "current_candidate_index", "messages", "questions_asked", "chat_complete"]:
+            if key in st.session_state:
+                del st.session_state[key]
         
-        # Notice we REMOVED the get_top_candidates() call here.
-        # We will just re-evaluate the candidates we already have in session_state.
-        
-        # 2. Rerun the app
+        # This force-clears the cache and triggers the Init block at the top
         st.rerun()
