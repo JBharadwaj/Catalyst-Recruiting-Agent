@@ -18,45 +18,68 @@ JD_API = "https://catalyst-recruiting-agent-1.onrender.com/get_job_descriptions"
 
 def get_top_candidates():
     try:
-        # 1. Check if the APIs are responding
         cands_resp = requests.get(CANDIDATES_API).json()
         jds_resp = requests.get(JD_API).json()
         
         cands = cands_resp.get("candidates", {})
         jds = jds_resp.get("job_descriptions", {})
 
-        if not cands:
-            print("DEBUG: API returned 0 candidates.")
+        # --- FIX 1: CHECK IF JDS EXIST ---
+        if not jds:
+            st.error("Error: No job descriptions found in JD_API.")
             return [], None, None
-
-        jd_title = list(jds.keys())[0]
+            
+        jd_keys = list(jds.keys())
+        if not jd_keys:
+            st.error("Error: Job description list is empty.")
+            return [], None, None
+            
+        jd_title = jd_keys[0]
         jd_info = jds[jd_title]
 
+        if not cands:
+            st.warning("No candidates found in API.")
+            return [], jd_title, jd_info
+
         scored_candidates = []
-
-        # 2. Check if this loop is even running
-        print(f"DEBUG: Processing {len(cands)} candidates...")
-
         for name, profile in cands.items():
-            # YOUR LINE IS HERE - Keep it here
-            score, _, _ = calculate_python_scores(profile, jd_info)
-            
-            print(f"DEBUG: Candidate {name} scored {score}")
-            scored_candidates.append((name, profile, score))
+            # Safety check: ensure profile and jd_info are valid for the ranker
+            try:
+                score, _, _ = calculate_python_scores(profile, jd_info)
+                scored_candidates.append((name, profile, score))
+            except Exception as e:
+                print(f"Skipping {name} due to scoring error: {e}")
 
-        # 3. Sort by score
         scored_candidates.sort(key=lambda x: x[2], reverse=True)
-
-        print(f"DEBUG: Final top list size: {len(scored_candidates)}")
         return scored_candidates[:2], jd_title, jd_info
 
     except Exception as e:
-    # This will show the actual Python error on your app screen
         st.error(f"Actual Error: {str(e)}") 
         return [], None, None
 
+# ---------------- UI INITIALIZATION ----------------
+st.title("🤝 Catalyst Recruiting Agent")
 
-# ---------------- SAVE RESULTS ----------------
+# Consolidated initialization block
+if "top_candidates" not in st.session_state:
+    with st.spinner("Fetching initial data..."):
+        cands, title, info = get_top_candidates()
+        
+        # We only set these if we actually got candidates
+        if cands:
+            st.session_state.top_candidates = cands
+            st.session_state.jd_title = title
+            st.session_state.jd_info = info
+            st.session_state.current_candidate_index = 0
+            st.session_state.messages = []
+            st.session_state.questions_asked = 0
+            st.session_state.chat_complete = False
+        else:
+            # If API failed or returned 0, we show a button to try again
+            st.error("Could not load candidates. The API might be down or returning empty data.")
+            if st.button("🔄 Retry Connection"):
+                st.rerun()
+            st.stop() # Prevents the rest of the app from running with empty data# ---------------- SAVE RESULTS ----------------
 def save_to_file(name, match_score, interest_score, note):
     new_entry = {
         "candidate_name": name,
@@ -165,23 +188,7 @@ Return ONLY next message.
     return completion.choices[0].message.content
 
 
-# ---------------- UI ----------------
-st.title("🤝 Catalyst Recruiting Agent")
 
-if "top_candidates" not in st.session_state or st.session_state.top_candidates == []:
-    with st.spinner("Loading candidates..."):
-        cands, title, info = get_top_candidates()
-        if cands:
-            st.session_state.top_candidates = cands
-            st.session_state.jd_title = title
-            st.session_state.jd_info = info
-            st.session_state.current_candidate_index = 0
-            st.session_state.messages = []
-            st.session_state.questions_asked = 0
-            st.session_state.chat_complete = False
-        else:
-            st.error("Failed to fetch candidates from API. Please check your API URL and Groq Key.")
-            st.stop()
 
 # Initialize session
 if "initialized" not in st.session_state:
