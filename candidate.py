@@ -1,6 +1,7 @@
 import os
 import json
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from groq import Groq  # Make sure to: pip install groq
 
@@ -10,6 +11,15 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 class CandidateProfile(BaseModel):
     full_name: str
