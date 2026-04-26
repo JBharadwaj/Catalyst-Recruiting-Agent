@@ -276,4 +276,5 @@ else:
     st.session_state.messages = []
     st.session_state.questions_asked = 0
     st.session_state.chat_complete = False
+    print(len(st.session_state.top_candidates))
     st.rerun()
