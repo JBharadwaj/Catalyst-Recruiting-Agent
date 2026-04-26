@@ -1,19 +1,19 @@
-
 import streamlit as st
 import json
 import os
 import requests
 from groq import Groq
-# Import the logic from your other file
-from ranking_agent import calculate_python_scores 
-# 1. Configuration
+from ranking_agent import calculate_python_scores
 
-os.environ["GROQ_API_KEY"]=st.secrets["GROQ_API_KEY"]
+# ---------------- CONFIG ----------------
+os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 RESULTS_FILE = "final_recruiter_data.json"
-CANDIDATES_API = "https://catalyst-recruiting-agent-1.onrender.com/get_candidates"
-JD_API = "https://catalyst-recruiting-agent-1.onrender.com/get_job_descriptions"
+
+CANDIDATES_API = st.secrets["CANDIDATES_API"]
+JD_API = st.secrets["JD_API"]
+
 
 # ---------------- FETCH TOP 2 CANDIDATES ----------------
 def get_top_candidates():
@@ -60,21 +60,53 @@ def save_to_file(name, match_score, interest_score, note):
         json.dump(data, f, indent=4)
 
 
+# ---------------- AI DISINTEREST CHECK ----------------
+def detect_disinterest_ai(chat_history, latest_message):
+    prompt = f"""
+Analyze if the candidate is NOT interested in the job.
+
+Conversation:
+{chat_history}
+
+Latest message:
+"{latest_message}"
+
+Rules:
+- Rejecting / avoiding → TRUE
+- Neutral → FALSE
+- Interested → FALSE
+
+Return JSON:
+{{
+    "disinterested": true/false,
+    "reason": "short reason"
+}}
+"""
+
+    completion = client.chat.completions.create(
+        model="llama-3.1-8b-instant",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"}
+    )
+
+    return json.loads(completion.choices[0].message.content)
+
+
 # ---------------- AI INTEREST ANALYSIS ----------------
 def analyze_interest_ai(chat_history):
     prompt = f"""
 Analyze this recruiter-candidate conversation.
 
 Return JSON:
-- score (0-100): candidate interest level
-- note: short reasoning
+- score (0-100)
+- note
 
 Chat:
 {chat_history}
 """
 
     completion = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"}
     )
@@ -85,61 +117,41 @@ Chat:
 # ---------------- AI RECRUITER ----------------
 def recruiter_chat_ai(messages, jd_title, jd_info, candidate_profile, question_count):
     prompt = f"""
-You are a HUMAN-LIKE HR RECRUITER (not a technical interviewer).
+You are a HUMAN HR RECRUITER.
 
-Job Role: {jd_title}
-Job Description: {jd_info}
+Role: {jd_title}
+JD: {jd_info}
+Candidate: {candidate_profile}
 
-Candidate Profile: {candidate_profile}
-
-Conversation so far:
+Conversation:
 {messages}
 
-Your Goal:
-- Assess candidate INTEREST and INTENT, not deep technical skills
-
 Rules:
-- Start by clearly introducing the ROLE and COMPANY context
-- Be warm, conversational, and professional
-- Ask ONLY ONE question at a time
+- Be conversational
+- Ask 1 question at a time
 - Max 10 questions
-
-Focus on:
-1. Interest in this role
-2. Reason for job change
-3. Availability / notice period
-4. Salary expectations
-5. Career goals
-6. Work preferences
-7. Enthusiasm / seriousness
-
-Avoid:
-- Deep technical grilling
-- Repeating questions
-- Robotic behavior
+- Focus on interest, availability, salary, goals
+- No deep tech
+- Don't ask paragraph questions
+- Questions has to clear and crisp
 
 Adapt:
-- If candidate seems uninterested → try to re-engage
-- If highly interested → move faster to closing
+- Disinterest → be polite
+- Interest → move faster
 
-End:
-- If enough info → conclude politely like a recruiter
-
-Current question count: {question_count}
-
-Return ONLY the next recruiter message.
+Return ONLY next message.
 """
 
     completion = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}]
     )
 
     return completion.choices[0].message.content
 
 
-# ---------------- STREAMLIT UI ----------------
-st.title("🤝 Catalyst Recruiting agent")
+# ---------------- UI ----------------
+st.title("🤝 Catalyst Recruiting Agent")
 
 # Initialize session
 if "initialized" not in st.session_state:
@@ -150,13 +162,15 @@ if "initialized" not in st.session_state:
     st.session_state.chat_complete = False
     st.session_state.initialized = True
 
-# Get current candidate
+
+# ---------------- PROCESS CANDIDATES ----------------
 if st.session_state.current_candidate_index < len(st.session_state.top_candidates):
 
     name, profile, match_score = st.session_state.top_candidates[st.session_state.current_candidate_index]
 
     st.subheader(f"👤 Candidate: {name}")
-    # Initial AI message
+
+    # Initial message
     if len(st.session_state.messages) == 0:
         first_msg = recruiter_chat_ai(
             [],
@@ -172,18 +186,41 @@ if st.session_state.current_candidate_index < len(st.session_state.top_candidate
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Chat flow
+    # ---------------- CHAT FLOW ----------------
     if not st.session_state.chat_complete:
         if user_input := st.chat_input("Reply to recruiter..."):
+
             st.session_state.messages.append({"role": "user", "content": user_input})
 
             with st.chat_message("user"):
                 st.markdown(user_input)
 
+            # 🔴 CHECK DISINTEREST
+            result = detect_disinterest_ai(
+                st.session_state.messages[-6:],
+                user_input
+            )
+
+            if result["disinterested"]:
+                exit_msg = "Thanks for your time. We understand you're not interested right now. We'll reach out in future opportunities."
+
+                st.session_state.messages.append({"role": "assistant", "content": exit_msg})
+
+                with st.chat_message("assistant"):
+                    st.markdown(exit_msg)
+
+                save_to_file(name, match_score, 0, result["reason"])
+
+                st.warning("❌ Candidate not interested")
+
+                st.session_state.chat_complete = True
+                st.rerun()
+
+            # ✅ CONTINUE
             st.session_state.questions_asked += 1
 
             ai_reply = recruiter_chat_ai(
-                st.session_state.messages,
+                st.session_state.messages[-6:],
                 st.session_state.jd_title,
                 st.session_state.jd_info,
                 profile,
@@ -195,15 +232,14 @@ if st.session_state.current_candidate_index < len(st.session_state.top_candidate
             with st.chat_message("assistant"):
                 st.markdown(ai_reply)
 
-            # Stop after 10 questions
             if st.session_state.questions_asked >= 10:
                 st.session_state.chat_complete = True
 
-    # After chat complete
+    # ---------------- FINAL ANALYSIS ----------------
     if st.session_state.chat_complete:
-        with st.spinner("Analyzing candidate interest..."):
+        with st.spinner("Analyzing..."):
 
-            interest_data = analyze_interest_ai(str(st.session_state.messages))
+            interest_data = analyze_interest_ai(str(st.session_state.messages[-8:]))
 
             save_to_file(
                 name,
@@ -214,14 +250,11 @@ if st.session_state.current_candidate_index < len(st.session_state.top_candidate
 
             total = (match_score + interest_data["score"]) / 2
 
-            if total >= 70 or interest_data["score"] >= 70:
-                result = "✅ Moving forward to interview!"
+            if total >= 70:
+                st.success("✅ Move to interview")
             else:
-                result = "❌ Not shortlisted, but saved for future."
+                st.error("❌ Not shortlisted")
 
-            st.success(result)
-
-        # Move to next candidate
         if st.button("➡️ Next Candidate"):
             st.session_state.current_candidate_index += 1
             st.session_state.messages = []

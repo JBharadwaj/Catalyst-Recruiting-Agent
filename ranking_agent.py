@@ -8,8 +8,8 @@ load_dotenv()
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-CANDIDATES_URL = "https://catalyst-recruiting-agent-1.onrender.com/get_candidates"
-JD_URL = "https://catalyst-recruiting-agent-1.onrender.com/get_job_descriptions"
+#CANDIDATES_URL = "https://catalyst-recruiting-agent-1.onrender.com/get_candidates"
+#JD_URL = "https://catalyst-recruiting-agent-1.onrender.com/get_job_descriptions"
 
 def expand_keywords_with_ai(keyword_list):
     """
