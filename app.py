@@ -35,7 +35,8 @@ def get_top_candidates():
         jd_info = jds[jd_title]
 
         scored_candidates = []
-
+        st.info(cands)
+        st.info(jds)
         for name, profile in cands.items():
             score, _, _ = calculate_python_scores(profile, jd_info)
             scored_candidates.append((name, profile, score))
