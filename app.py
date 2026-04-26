@@ -10,9 +10,10 @@ os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 RESULTS_FILE = "final_recruiter_data.json"
-
-CANDIDATES_API = st.secrets["CANDIDATES_API"]
-JD_API = st.secrets["JD_API"]
+CANDIDATES_URL = "https://catalyst-recruiting-agent-1.onrender.com/get_candidates"
+JD_URL = "https://catalyst-recruiting-agent-1.onrender.com/get_job_descriptions"
+#CANDIDATES_API = st.secrets["CANDIDATES_API"]
+#JD_API = st.secrets["JD_API"]
 
 
 def get_top_candidates():
